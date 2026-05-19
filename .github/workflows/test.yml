@@ -92,45 +92,33 @@ jobs:
           sudo useradd -m -s /bin/bash "$PRIMARY"
           sudo useradd -m -s /bin/bash "$SECONDARY"
 
-      - name: Install vsmartcard (virtual OpenPGP card emulator)
+      - name: Install vsmartcard (virtual reader + ICC + OpenPGP applet)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y vsmartcard-vpcd python3-virtualsmartcard pcscd pcsc-tools opensc
-
-      - name: Configure ifd-vpcd reader (so pcscd talks to virtual card daemon)
-        run: |
-          sudo install -d /etc/reader.conf.d
-          sudo tee /etc/reader.conf.d/vpcd >/dev/null <<'EOF'
-          FRIENDLYNAME "Virtual PCD"
-          DEVICENAME   /dev/null:0x8C7B
-          LIBPATH      /usr/lib/x86_64-linux-gnu/pcsc/drivers/serial/libifdvpcd.so
-          CHANNELID    0x8C7B
-          EOF
+          sudo apt-get install -y vsmartcard-vpcd vsmartcard-vpicc pcsc-tools
 
       - name: Run gpg-wsl install
         run: sudo make install PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY"
 
-      - name: Start virtual OpenPGP card and pcscd
+      - name: Restart pcscd to load vpcd driver, start virtual OpenPGP card
         run: |
           sudo systemctl restart pcscd
           sleep 2
-          # Launch virtualsmartcard with OpenPGP applet in the background
           nohup vicc --type openpgp >/tmp/vicc.log 2>&1 &
           sleep 5
-          # Show what pcsc sees
-          pcsc_scan -r || true
+          echo "--- pcsc_scan ---"
+          timeout 3 pcsc_scan -n || true
           echo "--- vicc log ---"
-          tail -20 /tmp/vicc.log || true
+          tail -30 /tmp/vicc.log || true
+          echo "--- pcscd journal ---"
+          sudo journalctl -u pcscd --no-pager -n 20 || true
 
       - name: Card visible under PRIMARY
         run: |
-          # PRIMARY needs scard group to be active in the new sudo shell - usermod ran in install
           sudo -u "$PRIMARY" -i gpg --card-status 2>&1 | tee /tmp/primary-card.log
-          grep -q "Application type" /tmp/primary-card.log || {
-            echo "PRIMARY does not see the card"; exit 1; }
+          grep -q "Application type" /tmp/primary-card.log
 
       - name: Card visible under SECONDARY (via proxy)
         run: |
           sudo -u "$SECONDARY" -i gpg --card-status 2>&1 | tee /tmp/secondary-card.log
-          grep -q "Application type" /tmp/secondary-card.log || {
-            echo "SECONDARY does not see the card via proxy"; exit 1; }
+          grep -q "Application type" /tmp/secondary-card.log
