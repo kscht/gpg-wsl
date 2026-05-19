@@ -71,4 +71,10 @@ systemctl start pcscd.socket
 # warm up primary scdaemon so the socket exists for secondary's first call
 sudo -u "$PRIMARY_USER" gpg --card-status >/dev/null 2>&1 || true
 
-echo "install done. run 'make status' to verify."
+echo
+echo "install done. run 'make status PRIMARY_USER=... SECONDARY_USER=...' to verify."
+echo
+echo "NOTE: 'usermod -aG' added users to groups (scard, plugdev), but currently"
+echo "open shells of $PRIMARY_USER and $SECONDARY_USER still run with old group"
+echo "membership. Open new terminal tabs (or 'wsl --shutdown' in PowerShell and"
+echo "reopen WSL) so the new groups take effect."
