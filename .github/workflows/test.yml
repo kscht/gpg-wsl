@@ -78,9 +78,11 @@ jobs:
           ! sudo grep -q 'scdaemon-program /usr/local/bin/scdaemon-proxy.sh' \
             /home/$SECONDARY/.gnupg/gpg-agent.conf 2>/dev/null
 
-  end-to-end-with-vsmartcard:
+  pcsc-visibility:
+    # Checks the polkit side: both users (members of scard) can talk to pcscd
+    # and see a virtual reader. Does NOT exercise OpenPGP/scdaemon - virtual
+    # cards available in apt do not emulate OpenPGP applet.
     runs-on: ubuntu-latest
-    continue-on-error: true  # vpcd/vicc setup is fragile in CI; track but do not block
     env:
       PRIMARY:   alice
       SECONDARY: bob
@@ -92,7 +94,7 @@ jobs:
           sudo useradd -m -s /bin/bash "$PRIMARY"
           sudo useradd -m -s /bin/bash "$SECONDARY"
 
-      - name: Install vsmartcard (virtual reader + ICC + OpenPGP applet)
+      - name: Install vsmartcard (virtual reader + generic ICC)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y vsmartcard-vpcd vsmartcard-vpicc pcsc-tools
@@ -100,25 +102,21 @@ jobs:
       - name: Run gpg-wsl install
         run: sudo make install PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY"
 
-      - name: Restart pcscd to load vpcd driver, start virtual OpenPGP card
+      - name: Restart pcscd, start virtual ICC (generic ISO7816)
         run: |
           sudo systemctl restart pcscd
           sleep 2
-          nohup vicc --type openpgp >/tmp/vicc.log 2>&1 &
+          nohup vicc --type iso7816 >/tmp/vicc.log 2>&1 &
           sleep 5
-          echo "--- pcsc_scan ---"
-          timeout 3 pcsc_scan -n || true
           echo "--- vicc log ---"
-          tail -30 /tmp/vicc.log || true
-          echo "--- pcscd journal ---"
-          sudo journalctl -u pcscd --no-pager -n 20 || true
+          tail -20 /tmp/vicc.log || true
 
-      - name: Card visible under PRIMARY
+      - name: Reader visible under PRIMARY (polkit allows scard group)
         run: |
-          sudo -u "$PRIMARY" -i gpg --card-status 2>&1 | tee /tmp/primary-card.log
-          grep -q "Application type" /tmp/primary-card.log
+          sudo -u "$PRIMARY" -i bash -c 'timeout 3 pcsc_scan -n' 2>&1 | tee /tmp/p.log
+          grep -qE 'Reader 0:|Virtual PCD' /tmp/p.log
 
-      - name: Card visible under SECONDARY (via proxy)
+      - name: Reader visible under SECONDARY (polkit allows scard group)
         run: |
-          sudo -u "$SECONDARY" -i gpg --card-status 2>&1 | tee /tmp/secondary-card.log
-          grep -q "Application type" /tmp/secondary-card.log
+          sudo -u "$SECONDARY" -i bash -c 'timeout 3 pcsc_scan -n' 2>&1 | tee /tmp/s.log
+          grep -qE 'Reader 0:|Virtual PCD' /tmp/s.log
