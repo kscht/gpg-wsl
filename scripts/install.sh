@@ -3,6 +3,7 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 PROJECT_DIR=$(dirname "$HERE")
+# shellcheck source=./lib.sh
 . "$HERE/lib.sh"
 
 require_root install
@@ -10,16 +11,14 @@ require_user "$PRIMARY_USER"
 require_user "$SECONDARY_USER"
 
 echo "[1/8] apt packages"
-APT_PKGS="pcscd scdaemon gnupg2 yubikey-manager socat"
-MISSING=$(dpkg-query -W -f='${Package} ${Status}\n' $APT_PKGS 2>/dev/null | awk '$NF!="installed"{print $1}'; \
-          for p in $APT_PKGS; do dpkg-query -W "$p" >/dev/null 2>&1 || echo "$p"; done) || true
-MISSING=$(echo "$MISSING" | sort -u | grep -v '^$' || true)
-if [ -n "$MISSING" ]; then
-    DEBIAN_FRONTEND=noninteractive apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y $MISSING
-fi
+DEBIAN_FRONTEND=noninteractive apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    pcscd scdaemon gnupg yubikey-manager socat
 
 echo "[2/8] groups"
+# pcscd on some distros (e.g. Ubuntu 24.04) does not create the 'scard' group itself.
+getent group scard   >/dev/null || groupadd --system scard
+getent group plugdev >/dev/null || groupadd --system plugdev
 for u in "$PRIMARY_USER" "$SECONDARY_USER"; do
     usermod -aG scard,plugdev "$u"
 done

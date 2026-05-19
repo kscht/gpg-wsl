@@ -1,7 +1,7 @@
 #!/bin/bash
 # Check the state of the gpg-wsl install.
 HERE=$(cd "$(dirname "$0")" && pwd)
-PROJECT_DIR=$(dirname "$HERE")
+# shellcheck source=./lib.sh
 . "$HERE/lib.sh"
 
 ok()   { printf '  \033[32mOK\033[0m  %s\n' "$1"; }
@@ -17,8 +17,8 @@ echo "== gpg-wsl status (primary=$PRIMARY_USER, secondary=$SECONDARY_USER) =="
 check_file /etc/polkit-1/rules.d/45-pcscd-scard.rules "polkit rule"
 check_file /etc/sudoers.d/96-yubikey-proxy             "sudoers rule"
 check_file /usr/local/bin/scdaemon-proxy.sh            "wrapper"
-check_file /home/$PRIMARY_USER/.gnupg/scdaemon.conf    "primary scdaemon.conf"
-check_file /home/$SECONDARY_USER/.gnupg/gpg-agent.conf "secondary gpg-agent.conf"
+check_file "/home/$PRIMARY_USER/.gnupg/scdaemon.conf"    "primary scdaemon.conf"
+check_file "/home/$SECONDARY_USER/.gnupg/gpg-agent.conf" "secondary gpg-agent.conf"
 
 if command -v pcscd >/dev/null && systemctl is-active pcscd.socket >/dev/null 2>&1; then
     ok "pcscd.socket active"

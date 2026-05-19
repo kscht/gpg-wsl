@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers for install/uninstall/status.
 # Expects env: PRIMARY_USER, SECONDARY_USER, PROJECT_DIR
 

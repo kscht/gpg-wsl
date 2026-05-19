@@ -3,7 +3,7 @@
 # Does NOT remove packages (pcscd/socat/etc) and does NOT touch user keyrings.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
-PROJECT_DIR=$(dirname "$HERE")
+# shellcheck source=./lib.sh
 . "$HERE/lib.sh"
 
 require_root uninstall
