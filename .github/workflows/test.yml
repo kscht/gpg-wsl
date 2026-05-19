@@ -45,14 +45,9 @@ jobs:
           sudo grep -q 'BEGIN gpg-wsl' /home/$SECONDARY/.bashrc
           sudo grep -q 'multi-server' /home/$PRIMARY/.gnupg/scdaemon.conf
           sudo grep -q 'scdaemon-program' /home/$SECONDARY/.gnupg/gpg-agent.conf
-          # narrow sudoers rule parses
           sudo visudo -cf /etc/sudoers.d/96-yubikey-proxy
-          # users belong to scard
           id "$PRIMARY"   | grep -q 'scard'
           id "$SECONDARY" | grep -q 'scard'
-
-      - name: Status command runs
-        run: make status PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY" || true
 
       - name: Idempotent install (run again)
         run: sudo make install PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY"
@@ -65,6 +60,9 @@ jobs:
               echo "duplicate snippet in /home/$u/.bashrc (found $count)"; exit 1
             fi
           done
+
+      - name: Status command runs
+        run: make status PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY" || true
 
       - name: Uninstall
         run: sudo make uninstall PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY"
@@ -79,3 +77,59 @@ jobs:
           ! sudo grep -q 'BEGIN gpg-wsl' /home/$SECONDARY/.bashrc
           ! sudo grep -q 'scdaemon-program /usr/local/bin/scdaemon-proxy.sh' \
             /home/$SECONDARY/.gnupg/gpg-agent.conf 2>/dev/null
+
+  end-to-end-with-vsmartcard:
+    runs-on: ubuntu-latest
+    env:
+      PRIMARY:   alice
+      SECONDARY: bob
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test users
+        run: |
+          sudo useradd -m -s /bin/bash "$PRIMARY"
+          sudo useradd -m -s /bin/bash "$SECONDARY"
+
+      - name: Install vsmartcard (virtual OpenPGP card emulator)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y vsmartcard-vpcd python3-virtualsmartcard pcscd pcsc-tools opensc
+
+      - name: Configure ifd-vpcd reader (so pcscd talks to virtual card daemon)
+        run: |
+          sudo install -d /etc/reader.conf.d
+          sudo tee /etc/reader.conf.d/vpcd >/dev/null <<'EOF'
+          FRIENDLYNAME "Virtual PCD"
+          DEVICENAME   /dev/null:0x8C7B
+          LIBPATH      /usr/lib/x86_64-linux-gnu/pcsc/drivers/serial/libifdvpcd.so
+          CHANNELID    0x8C7B
+          EOF
+
+      - name: Run gpg-wsl install
+        run: sudo make install PRIMARY_USER="$PRIMARY" SECONDARY_USER="$SECONDARY"
+
+      - name: Start virtual OpenPGP card and pcscd
+        run: |
+          sudo systemctl restart pcscd
+          sleep 2
+          # Launch virtualsmartcard with OpenPGP applet in the background
+          nohup vicc --type openpgp >/tmp/vicc.log 2>&1 &
+          sleep 5
+          # Show what pcsc sees
+          pcsc_scan -r || true
+          echo "--- vicc log ---"
+          tail -20 /tmp/vicc.log || true
+
+      - name: Card visible under PRIMARY
+        run: |
+          # PRIMARY needs scard group to be active in the new sudo shell - usermod ran in install
+          sudo -u "$PRIMARY" -i gpg --card-status 2>&1 | tee /tmp/primary-card.log
+          grep -q "Application type" /tmp/primary-card.log || {
+            echo "PRIMARY does not see the card"; exit 1; }
+
+      - name: Card visible under SECONDARY (via proxy)
+        run: |
+          sudo -u "$SECONDARY" -i gpg --card-status 2>&1 | tee /tmp/secondary-card.log
+          grep -q "Application type" /tmp/secondary-card.log || {
+            echo "SECONDARY does not see the card via proxy"; exit 1; }
