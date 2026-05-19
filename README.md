@@ -40,6 +40,76 @@ sudo make uninstall PRIMARY_USER=alice SECONDARY_USER=bob
 
 Переменные `PRIMARY_USER` и `SECONDARY_USER` обязательны — дефолтов нет.
 
+После `install` пользователям нужно открыть **новые** вкладки WSL
+(или выполнить `wsl --shutdown` в PowerShell и снова открыть WSL),
+чтобы вступило в силу членство в группах `scard` и `plugdev`.
+
+## Подготовка Windows (usbipd-win)
+
+YubiKey виден внутри WSL только если устройство проброшено через
+[usbipd-win](https://github.com/dorssel/usbipd-win). Все команды ниже —
+в **PowerShell от администратора**.
+
+### Установка
+
+```powershell
+winget install --interactive --exact dorssel.usbipd-win
+```
+
+Или MSI с https://github.com/dorssel/usbipd-win/releases.
+
+### Привязать устройство (один раз, сохраняется между перезагрузками)
+
+```powershell
+usbipd list
+```
+
+Найди строку с YubiKey, запомни `BUSID` (например `2-1`), затем:
+
+```powershell
+usbipd bind --busid 2-1
+```
+
+После `bind` устройство помечено как shared и доступно для проброса
+в WSL без повторного `bind`.
+
+### Приаттачить к WSL
+
+```powershell
+usbipd attach --busid 2-1 --wsl Ubuntu
+```
+
+Имя дистрибутива (`Ubuntu`) — из вывода `wsl -l -v`. Если дистрибутив
+один, `--wsl` без значения тоже сработает.
+
+`attach` нужно повторять после каждого `wsl --shutdown` или
+перезагрузки Windows. Чтобы автоматически переподключать устройство:
+
+```powershell
+usbipd attach --busid 2-1 --wsl Ubuntu --auto-attach
+```
+
+Флаг `--auto-attach` держит фоновый процесс и приаттачивает устройство
+при каждом старте WSL — окно PowerShell должно оставаться открытым.
+Альтернатива — задача в Task Scheduler, выполняющая `usbipd attach`
+при входе в Windows.
+
+### Проверка из WSL
+
+```bash
+lsusb | grep -i yubi
+```
+
+Если строка вида `Yubico.com Yubikey ...` появилась — устройство
+пробросилось, можно запускать `make install`.
+
+### Отвязать (если потребуется)
+
+```powershell
+usbipd detach --busid 2-1
+usbipd unbind --busid 2-1
+```
+
 ## Что устанавливается
 
 - `/etc/polkit-1/rules.d/45-pcscd-scard.rules` — группа `scard` получает
