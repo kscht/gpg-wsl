@@ -1,0 +1,4 @@
+# BEGIN gpg-wsl: ssh through gpg-agent (YubiKey)
+export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+gpgconf --launch gpg-agent >/dev/null 2>&1
+# END gpg-wsl

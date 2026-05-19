@@ -1,0 +1,1 @@
+@SECONDARY_USER@ ALL=(@PRIMARY_USER@) NOPASSWD: /usr/bin/socat - UNIX-CONNECT\:/run/user/@PRIMARY_UID@/gnupg/S.scdaemon

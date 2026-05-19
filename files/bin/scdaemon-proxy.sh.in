@@ -1,0 +1,4 @@
+#!/bin/bash
+# Proxy stdin/stdout to @PRIMARY_USER@'s scdaemon Assuan socket via socat.
+# Run as @PRIMARY_USER@ through narrow sudoers rule /etc/sudoers.d/96-yubikey-proxy.
+exec sudo -u @PRIMARY_USER@ -n /usr/bin/socat - UNIX-CONNECT:/run/user/@PRIMARY_UID@/gnupg/S.scdaemon
