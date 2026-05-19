@@ -1,5 +1,7 @@
 # gpg-wsl
 
+[![test](https://github.com/kscht/gpg-wsl/actions/workflows/test.yml/badge.svg)](https://github.com/kscht/gpg-wsl/actions/workflows/test.yml)
+
 Расшарить одну YubiKey OpenPGP-карту между двумя пользователями WSL
 (`PRIMARY_USER`, `SECONDARY_USER`) так, чтобы оба могли использовать её
 из `gpg`, `ssh -A` и т.д., без ручного переключения карты между сессиями.
@@ -17,6 +19,7 @@
   - [Отвязать](#отвязать-если-потребуется)
 - [Что устанавливается](#что-устанавливается)
 - [Зачем так](#зачем-так)
+- [Разработка и тестирование](#разработка-и-тестирование)
 - [Безопасность](#безопасность)
 
 ## Как это работает
@@ -174,6 +177,34 @@ yubikey-manager socat`.
 эксклюзивно, и второй пользователь упирается в
 `LIBUSB_ERROR_BUSY`. Этот проект приводит всё к одному `scdaemon`
 и открывает к нему доступ обоим пользователям через сокет.
+
+## Разработка и тестирование
+
+Линтеры и автотесты живут в `.github/workflows/test.yml` и запускаются на
+каждый push/PR в `main`:
+
+- **shellcheck** — линтит `scripts/*.sh` и `scripts/lib.sh` с
+  `--severity=warning -x`.
+- **install-cycle** — на `ubuntu-latest` создаёт тестовых юзеров
+  `alice`/`bob`, прогоняет `make install`, проверяет наличие всех
+  артефактов и валидность sudoers, прогоняет `make install` повторно
+  (idempotence — `~/.bashrc`-сниппет не должен дублироваться),
+  выполняет `make uninstall` и проверяет, что система очищена.
+- **pcsc-visibility** — устанавливает `vsmartcard-vpcd` +
+  `vsmartcard-vpicc`, поднимает виртуальный ISO-7816 reader через
+  `vicc`, проверяет, что **оба** тестовых юзера видят reader через
+  pcscd. Это покрывает polkit-сторону. Реальный gpg/scdaemon-flow
+  с OpenPGP applet проверяется только локально на машине с
+  YubiKey — в apt-репозитории нет эмулятора OpenPGP applet.
+
+Локальный pre-commit hook для shellcheck:
+
+```bash
+pip install --user pre-commit
+pre-commit install
+```
+
+Конфиг — `.pre-commit-config.yaml`.
 
 ## Безопасность
 

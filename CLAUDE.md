@@ -44,12 +44,39 @@ scdaemon. Это даёт общий PIN-кеш и снимает конфлик
 
 ## Тестирование изменений
 
+### Автоматическое (CI)
+
+`.github/workflows/test.yml` запускается на push/PR в `main`:
+
+- `shellcheck` (с `-x --severity=warning`) — линт всех скриптов.
+- `install-cycle` — на тестовых юзерах `alice`/`bob` прогоняет
+  install → verify-artifacts → idempotent install → snippet dedup →
+  uninstall → verify-clean.
+- `pcsc-visibility` — поднимает виртуальный reader через `vicc`,
+  проверяет, что оба тестовых юзера видят его через pcscd
+  (покрывает polkit-сторону).
+
+Real OpenPGP/scdaemon-flow CI **не покрывает** — `vsmartcard-vpicc`
+эмулирует только ISO-7816, нет OpenPGP applet. Эту часть проверяй
+вручную на машине с YubiKey.
+
+### Локальное
+
 1. `sudo make uninstall PRIMARY_USER=… SECONDARY_USER=…` — снести всё.
 2. `sudo make install PRIMARY_USER=… SECONDARY_USER=…` — поставить заново.
 3. `make status PRIMARY_USER=… SECONDARY_USER=…` — проверить.
 4. В двух разных сессиях (по пользователю на каждую) попробовать
    `gpg --card-status` и `ssh -A` — оба должны работать без перехвата
    карты.
+
+Pre-commit:
+
+```bash
+pre-commit install     # ставит хук
+pre-commit run -a      # прогнать на всех файлах
+```
+
+Конфиг — `.pre-commit-config.yaml`, гонит `shellcheck`.
 
 ## Ссылки
 
