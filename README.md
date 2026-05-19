@@ -4,6 +4,21 @@
 (`PRIMARY_USER`, `SECONDARY_USER`) так, чтобы оба могли использовать её
 из `gpg`, `ssh -A` и т.д., без ручного переключения карты между сессиями.
 
+## Оглавление
+
+- [Как это работает](#как-это-работает)
+- [Ограничение](#ограничение)
+- [Использование](#использование)
+- [Подготовка Windows (usbipd-win)](#подготовка-windows-usbipd-win)
+  - [Установка](#установка)
+  - [Привязать устройство](#привязать-устройство-один-раз-сохраняется-между-перезагрузками)
+  - [Приаттачить к WSL](#приаттачить-к-wsl)
+  - [Проверка из WSL](#проверка-из-wsl)
+  - [Отвязать](#отвязать-если-потребуется)
+- [Что устанавливается](#что-устанавливается)
+- [Зачем так](#зачем-так)
+- [Безопасность](#безопасность)
+
 ## Как это работает
 
 - `scdaemon` пользователя `PRIMARY_USER` работает в режиме `multi-server`
@@ -52,11 +67,32 @@ YubiKey виден внутри WSL только если устройство �
 
 ### Установка
 
+Скопируй и выполни блок целиком — поставит usbipd-win, если его ещё нет,
+и покажет версию:
+
 ```powershell
-winget install --interactive --exact dorssel.usbipd-win
+if (-not (Get-Command usbipd -ErrorAction SilentlyContinue)) {
+    winget install --silent --accept-package-agreements --accept-source-agreements --exact dorssel.usbipd-win
+    $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
+}
+usbipd --version
 ```
 
-Или MSI с https://github.com/dorssel/usbipd-win/releases.
+Альтернативы, если `winget` недоступен:
+
+```powershell
+# через Chocolatey
+choco install usbipd
+
+# через Scoop
+scoop bucket add extras
+scoop install usbipd-win
+```
+
+Либо MSI с https://github.com/dorssel/usbipd-win/releases.
+
+После установки **перезапусти PowerShell** (или открой новое окно от
+администратора), иначе `usbipd` может ещё не оказаться в `PATH`.
 
 ### Привязать устройство (один раз, сохраняется между перезагрузками)
 
